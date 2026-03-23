@@ -1,0 +1,11 @@
+{
+  "name": "linkshield",
+  "version": "1.0.0",
+  "description": "Link Shield - Analizador de links sospechosos con Claude AI",
+  "dependencies": {
+    "node-fetch": "^2.6.9"
+  },
+  "engines": {
+    "node": "18"
+  }
+}
