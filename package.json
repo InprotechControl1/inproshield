@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Link Shield - Analizador de links sospechosos con Claude AI",
   "dependencies": {
-    "node-fetch": "^2.6.9"
+    "node-fetch": "^2.6.9",
+    "@google/generative-ai": "^0.21.0"
   },
   "engines": {
     "node": "18"
