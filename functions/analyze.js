@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
 export async function onRequest(context) {
   const { request, env } = context;
   if (request.method !== 'POST') {
@@ -10,7 +12,6 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ error: 'URL requerida' }), { status: 400 });
     }
 
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
