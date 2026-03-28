@@ -2,6 +2,7 @@
   "name": "linkshield",
   "version": "1.0.0",
   "description": "Link Shield - Analizador de links sospechosos con Claude AI",
+  "type": "module",
   "dependencies": {
     "node-fetch": "^2.6.9",
     "@google/generative-ai": "^0.21.0"
@@ -10,3 +11,4 @@
     "node": "18"
   }
 }
+“Agregar type module a package.json”
