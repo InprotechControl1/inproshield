@@ -1,13 +1,13 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+export async function onRequest(context) {
+  const { request, env } = context;
+  if (request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 });
   }
 
-  const { property_data, agent_name, agent_phone } = JSON.parse(event.body);
+  const { property_data, agent_name, agent_phone } = await request.json();
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const { GoogleGenerativeAI } = await import('@google/generative-ai');
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
   const prompt = `
@@ -20,7 +20,7 @@ Datos de la propiedad:
 - Baños: ${property_data.banos}
 - Superficie: ${property_data.superficie} m²
 - Ubicación: ${property_data.ubicacion}
-- Características destacadas: ${property_data.caracteristicas ? property_data.caracteristicas.join(', ') : 'N/A'}
+- Características destacadas: ${property_data.caracteristicas?.join(', ') || 'N/A'}
 - Descripción: ${property_data.descripcion}
 
 Reglas:
@@ -32,12 +32,8 @@ Reglas:
 
 Devuelve ÚNICAMENTE el texto del mensaje.
 `;
-
   const result = await model.generateContent(prompt);
   const message = result.response.text();
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ message })
-  };
-};
+  return new Response(JSON.stringify({ message }));
+}

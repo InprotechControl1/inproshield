@@ -1,17 +1,17 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+export async function onRequest(context) {
+  const { request, env } = context;
+  if (request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 });
   }
 
   try {
-    const { url } = JSON.parse(event.body);
+    const { url } = await request.json();
     if (!url) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'URL requerida' }) };
+      return new Response(JSON.stringify({ error: 'URL requerida' }), { status: 400 });
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
     const prompt = `
@@ -30,36 +30,27 @@ Instrucciones:
    - superficie: número en metros cuadrados (null si no disponible)
    - ubicacion: texto con dirección, barrio y ciudad
    - descripcion: texto completo de la descripción
-   - caracteristicas: array de strings con características destacadas (piscina, estacionamiento, etc.)
+   - caracteristicas: array de strings con características destacadas
    - imagenes: array de URLs de las imágenes principales (máximo 5)
    - url_original: la URL proporcionada
-   - portal: nombre del portal (ej. "Tucasa", "Zillow", "Clasificación")
+   - portal: nombre del portal
 
 3. Si un campo no está disponible, usa null.
 4. Para propiedades en bolívares (VES), intenta estimar el valor en USD usando el tipo de cambio del día (puedes hacer una búsqueda web rápida). Incluye ambos en un campo opcional "precio_usd_estimado".
 
 Devuelve ÚNICAMENTE el objeto JSON.
 `;
-
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-
     const jsonMatch = text.match(/\{.*\}/s);
-    if (!jsonMatch) {
-      throw new Error('No se pudo extraer JSON de la respuesta');
-    }
+    if (!jsonMatch) throw new Error('No se pudo extraer JSON');
     const propertyData = JSON.parse(jsonMatch[0]);
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(propertyData)
-    };
+    return new Response(JSON.stringify(propertyData), {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error(error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Error al procesar la URL' })
-    };
+    return new Response(JSON.stringify({ error: 'Error al procesar la URL' }), { status: 500 });
   }
-};
+}
