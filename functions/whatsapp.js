@@ -1,15 +1,20 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
+// functions/whatsapp.js
 export async function onRequest(context) {
   const { request, env } = context;
+
   if (request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405 });
   }
 
   const { property_data, agent_name, agent_phone } = await request.json();
+  if (!property_data || !agent_name || !agent_phone) {
+    return new Response(JSON.stringify({ error: 'Datos incompletos' }), { status: 400 });
+  }
 
-  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+  const GEMINI_API_KEY = env.GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    return new Response(JSON.stringify({ error: 'API key no configurada' }), { status: 500 });
+  }
 
   const prompt = `
 Genera un mensaje corto y persuasivo para WhatsApp basado en los siguientes datos de una propiedad inmobiliaria. El agente se llama ${agent_name} y su teléfono es ${agent_phone}.
@@ -21,7 +26,7 @@ Datos de la propiedad:
 - Baños: ${property_data.banos}
 - Superficie: ${property_data.superficie} m²
 - Ubicación: ${property_data.ubicacion}
-- Características destacadas: ${property_data.caracteristicas?.join(', ') || 'N/A'}
+- Características destacadas: ${property_data.caracteristicas ? property_data.caracteristicas.join(', ') : 'N/A'}
 - Descripción: ${property_data.descripcion}
 
 Reglas:
@@ -33,8 +38,32 @@ Reglas:
 
 Devuelve ÚNICAMENTE el texto del mensaje.
 `;
-  const result = await model.generateContent(prompt);
-  const message = result.response.text();
 
-  return new Response(JSON.stringify({ message }));
+  try {
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      throw new Error(`Gemini API error: ${geminiResponse.status} ${errorText}`);
+    }
+
+    const data = await geminiResponse.json();
+    const message = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!message) throw new Error('No se recibió mensaje de Gemini');
+
+    return new Response(JSON.stringify({ message }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  }
 }

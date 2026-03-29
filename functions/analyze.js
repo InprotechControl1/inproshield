@@ -1,21 +1,22 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
+// functions/analyze.js
 export async function onRequest(context) {
   const { request, env } = context;
+
   if (request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405 });
   }
 
-  try {
-    const { url } = await request.json();
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'URL requerida' }), { status: 400 });
-    }
+  const { url } = await request.json();
+  if (!url) {
+    return new Response(JSON.stringify({ error: 'URL requerida' }), { status: 400 });
+  }
 
-    const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+  const GEMINI_API_KEY = env.GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    return new Response(JSON.stringify({ error: 'API key no configurada' }), { status: 500 });
+  }
 
-    const prompt = `
+  const prompt = `
 Analiza la siguiente URL de un portal inmobiliario y extrae la información estructurada de la propiedad.
 
 URL: ${url}
@@ -41,17 +42,36 @@ Instrucciones:
 
 Devuelve ÚNICAMENTE el objeto JSON.
 `;
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const jsonMatch = text.match(/\{.*\}/s);
-    if (!jsonMatch) throw new Error('No se pudo extraer JSON');
-    const propertyData = JSON.parse(jsonMatch[0]);
 
+  try {
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      throw new Error(`Gemini API error: ${geminiResponse.status} ${errorText}`);
+    }
+
+    const data = await geminiResponse.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) throw new Error('No se recibió respuesta válida de Gemini');
+
+    const jsonMatch = rawText.match(/\{.*\}/s);
+    if (!jsonMatch) throw new Error('No se pudo extraer JSON de la respuesta');
+
+    const propertyData = JSON.parse(jsonMatch[0]);
     return new Response(JSON.stringify(propertyData), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: 'Error al procesar la URL' }), { status: 500 });
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
