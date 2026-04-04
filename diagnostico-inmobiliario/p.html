@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>InproShield · Captura de propiedades</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #F9FAFB;
+      --surface: #FFFFFF;
+      --surface2: #F3F4F6;
+      --border: #E5E7EB;
+      --text: #111827;
+      --muted: #6B7280;
+      --primary: #2563EB;
+      --primary-dark: #1E3A8A;
+      --serif: 'DM Serif Display', serif;
+      --sans: 'DM Sans', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 2rem 1rem;
+    }
+    .wrap { max-width: 800px; margin: 0 auto; }
+    .card {
+      background: var(--surface);
+      border-radius: 28px;
+      padding: 2rem;
+      box-shadow: 0 1px 3px 0 rgba(0,0,0,0.05);
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-family: var(--serif);
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .url-input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 40px;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 40px;
+      padding: 12px 24px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover { background: var(--primary-dark); }
+    .resultado {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: var(--surface2);
+      border-radius: 16px;
+    }
+    .campo {
+      margin-bottom: 1rem;
+    }
+    label {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-family: var(--sans);
+    }
+    textarea { resize: vertical; }
+    .imagenes-preview {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .imagenes-preview img {
+      max-width: 100px;
+      border-radius: 8px;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 2rem;
+    }
+    .hidden { display: none; }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>🔗 Captura propiedades desde links</h1>
+    <p>Pega el enlace de Marketplace, Instagram o cualquier portal inmobiliario y extraeremos los datos clave.</p>
+    <input type="url" id="urlInput" class="url-input" placeholder="https://...">
+    <button id="analizarBtn">Analizar y capturar</button>
+    <div id="resultado" class="resultado hidden"></div>
+  </div>
+  <footer>InproShield · Herramienta en desarrollo</footer>
+</div>
+<script>
+  const analizarBtn = document.getElementById('analizarBtn');
+  const urlInput = document.getElementById('urlInput');
+  const resultadoDiv = document.getElementById('resultado');
+
+  analizarBtn.onclick = async () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+      alert('Ingresa un enlace');
+      return;
+    }
+
+    analizarBtn.disabled = true;
+    analizarBtn.innerText = 'Analizando...';
+    resultadoDiv.classList.remove('hidden');
+    resultadoDiv.innerHTML = '<div class="spinner"></div><p style="text-align:center">Extrayendo información...</p>';
+
+    try {
+      const response = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Error al extraer');
+      }
+      mostrarFormularioEditable(result.data, url);
+    } catch (err) {
+      resultadoDiv.innerHTML = `<p style="color:red">❌ Error: ${err.message}</p>`;
+    } finally {
+      analizarBtn.disabled = false;
+      analizarBtn.innerText = 'Analizar y capturar';
+    }
+  };
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
+
+  function extraerNumero(texto, patron) {
+    const match = texto.match(patron);
+    return match ? parseInt(match[1]) : 0;
+  }
+
+  function mostrarFormularioEditable(data, originalUrl) {
+    const titulo = data.titulo || '';
+    const precio = data.precio || '';
+    const ubicacion = data.ubicacion || '';
+    const descripcion = data.descripcion || '';
+    const imagenes = data.imagenes || [];
+
+    // Extraer características
+    let metros = extraerNumero(descripcion + ' ' + titulo, /(\d+)\s*m2/i);
+    let habitaciones = extraerNumero(descripcion + ' ' + titulo, /(\d+)\s*habitaciones?/i);
+    let banos = extraerNumero(descripcion + ' ' + titulo, /(\d+)\s*baños?/i);
+    let antiguedad = extraerNumero(descripcion + ' ' + titulo, /(\d+)\s*años/i);
+    let zona = 'Centro';
+    if (ubicacion) {
+      const primera = ubicacion.split(',')[0].trim();
+      const zonasValidas = ['Centro', 'Norte', 'Sur', 'Este', 'Oeste'];
+      if (zonasValidas.includes(primera)) zona = primera;
+    }
+
+    let valorEstimado = null;
+    (async () => {
+      try {
+        const payload = { metros, habitaciones, banos, antiguedad, zona, num_parques:0, num_escuelas:0, num_transporte:0, num_comercios:0 };
+        const resp = await fetch('/api/valorar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const resJson = await resp.json();
+        if (resp.ok && resJson.valor_estimado) valorEstimado = resJson.valor_estimado;
+      } catch (err) {
+        console.error('Error en valoración:', err);
+      } finally {
+        dibujarFormulario(valorEstimado);
+      }
+    })();
+
+    function dibujarFormulario(valorEstimado) {
+      let valorHtml = '';
+      if (valorEstimado !== null) {
+        const valorFormateado = valorEstimado.toLocaleString('es-VE', { style: 'currency', currency: 'USD' });
+        valorHtml = `<div class="campo"><label>Valor estimado (IA)</label><input type="text" value="${valorFormateado}" readonly style="background:#f0f4f9; font-weight:bold;"><small>Estimación basada en datos extraídos</small></div>`;
+      }
+
+      let imagenesHtml = '';
+      if (imagenes.length) {
+        imagenesHtml = '<div class="imagenes-preview">' + imagenes.map(img => `<img src="${img}" onerror="this.style.display='none'">`).join('') + '</div>';
+      }
+
+      resultadoDiv.innerHTML = `
+        <h3>📋 Datos extraídos (puedes editarlos)</h3>
+        <div class="campo"><label>Título</label><input type="text" id="editTitulo" value="${escapeHtml(titulo)}"></div>
+        <div class="campo"><label>Precio</label><input type="text" id="editPrecio" value="${escapeHtml(precio)}"></div>
+        <div class="campo"><label>Ubicación</label><input type="text" id="editUbicacion" value="${escapeHtml(ubicacion)}"></div>
+        <div class="campo"><label>Descripción</label><textarea id="editDescripcion" rows="3">${escapeHtml(descripcion)}</textarea></div>
+        <div class="campo"><label>Imágenes</label>${imagenesHtml}<small>Las imágenes se guardarán como referencia.</small></div>
+        ${valorHtml}
+        <div class="campo"><label>Tu correo (para asociar la propiedad)</label><input type="email" id="agenteEmail" placeholder="tu@email.com"></div>
+        <button id="guardarBtn">Guardar propiedad</button>
+      `;
+
+      document.getElementById('guardarBtn').onclick = async () => {
+        const agenteEmail = document.getElementById('agenteEmail').value.trim();
+        if (!agenteEmail) { alert('Ingresa tu correo'); return; }
+        const propiedad = {
+          url: originalUrl,
+          titulo: document.getElementById('editTitulo').value,
+          precio: document.getElementById('editPrecio').value,
+          ubicacion: document.getElementById('editUbicacion').value,
+          descripcion: document.getElementById('editDescripcion').value,
+          imagenes: imagenes,
+          agente_email: agenteEmail,
+          valor_estimado: valorEstimado
+        };
+        const guardarBtn = document.getElementById('guardarBtn');
+        guardarBtn.disabled = true;
+        guardarBtn.innerText = 'Guardando...';
+        try {
+          const resp = await fetch('/api/property', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(propiedad)
+          });
+          const json = await resp.json();
+          if (json.success) {
+            resultadoDiv.innerHTML = '<p style="color:green">✅ Propiedad guardada correctamente. Recibirás un resumen por correo.</p>';
+          } else {
+            throw new Error(json.error || 'Error al guardar');
+          }
+        } catch (err) {
+          alert('Error al guardar: ' + err.message);
+        } finally {
+          guardarBtn.disabled = false;
+          guardarBtn.innerText = 'Guardar propiedad';
+        }
+      };
+    }
+  }
+</script>
+</body>
+</html>
