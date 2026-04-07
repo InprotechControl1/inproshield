@@ -1,28 +1,31 @@
-export async function onRequest(context) {
-  const { request, env } = context;
+// functions/api/valorar.js
 
-  if (request.method !== 'POST') {
-    return new Response('Método no permitido', { status: 405 });
-  }
-
+export async function onRequestPost(context) {
   try {
-    const body = await request.json();
-    const response = await fetch('https://valorapp-555636979224.us-central1.run.app/valorar', {
+    // 1. Recibir datos del formulario del frontend
+    const inputData = await context.request.json();
+
+    // 2. Llamada al nuevo Nodo de Bypass (Tu Worker recién creado)
+    // Esto salta el bloqueo geográfico gracias al Smart Placement
+    const bypassResponse = await fetch('https://inproshield-api-proxy.rainiercasanova.workers.dev/api/valorar', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': env.VALORAPP_API_KEY
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(inputData)
     });
-    const data = await response.json();
-    return new Response(JSON.stringify(data), {
-      status: response.status,
+
+    const result = await bypassResponse.json();
+
+    // 3. Devolver la respuesta limpia al frontend
+    return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+
+  } catch (error) {
+    return new Response(JSON.stringify({ 
+      integrity_score: 0, 
+      error: "Error de conexión con el nodo de bypass" 
+    }), { status: 500 });
   }
 }
-// forced update
-// force deploy
